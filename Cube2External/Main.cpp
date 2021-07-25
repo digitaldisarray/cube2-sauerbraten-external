@@ -7,8 +7,10 @@
 #include "imgui/imgui_impl_opengl3.h"
 #include <stdio.h>
 #include <GLFW/glfw3.h>
+#include "proc.h"
+#include "dataTypes.h"
 #include "Helpers.h"
-
+#include "offsets.h"
 
 static void glfw_error_callback(int error, const char* description)
 {
@@ -16,6 +18,35 @@ static void glfw_error_callback(int error, const char* description)
 }
 
 int main() {
+
+    // get procid of the target process
+    DWORD procId = GetProcId(L"sauerbraten.exe");
+    std::cout << "PID: " << procId << std::endl;
+
+    if (!procId) {
+        std::cout << "sauerbraten.exe not found" << std::endl;
+        return 0;
+    }
+
+    // get the base address of the game
+    uintptr_t moduleBase = GetModuleBaseAddress(procId, L"sauerbraten.exe"); // 7FF6768C0000 - sauerbraten.exe
+    std::cout << "Module Base: 0x" << std::hex << moduleBase << std::endl;
+
+    // Open handle to process
+    HANDLE hProcess = 0;
+    hProcess = OpenProcess(PROCESS_ALL_ACCESS, NULL, procId);
+    std::cout << "hProcess: " << hProcess << std::endl;
+
+    localPlayer.dmaHealth = FindDMAAddy(hProcess, (moduleBase + localPlayer.base), { 0x0, localPlayer.health });
+
+    uintptr_t playerListAddr = 0;
+
+    //You must read the pointer to get the address of it here
+    //ReadProcessMemory(hProcess, (BYTE*)(moduleBase + general.playerList), &playerListAddr, sizeof(playerListAddr), NULL);
+    //std::cout << "0x" << std::hex << (moduleBase + general.playerList) << std::endl;
+    //std::cout << "0x" << std::hex << playerListAddr << std::endl;
+
+
     glfwSetErrorCallback(glfw_error_callback);
     if (!glfwInit())
         return 1;
@@ -54,6 +85,11 @@ int main() {
         return 1;
     }
 
+    const GLubyte* renderer = glGetString(GL_RENDERER); // get renderer string
+    const GLubyte* version = glGetString(GL_VERSION); // version as a string
+    printf("Renderer: %s\n", renderer);
+    printf("OpenGL version supported %s\n", version);
+
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -74,7 +110,7 @@ int main() {
         // Get input
         glfwPollEvents();
 
-        if (GetAsyncKeyState(VK_INSERT) & 1) {
+        if (GetAsyncKeyState(VK_RSHIFT) & 1) {
             bMenuVisible = !bMenuVisible;
             if (bMenuVisible)
                 showMenu(window);
@@ -86,6 +122,41 @@ int main() {
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
+        glClear(GL_COLOR_BUFFER_BIT);
+        
+        
+        int inMenu = 0;
+        ReadProcessMemory(hProcess, (BYTE*)moduleBase + general.menu, &inMenu, sizeof(inMenu), nullptr);
+        // If we are in a game
+        if (inMenu == 0) {
+            int numPlayers = 0;
+            ReadProcessMemory(hProcess, (BYTE*)(moduleBase + general.numPlayers), &numPlayers, sizeof(numPlayers), nullptr);
+            
+            if (numPlayers > 1) {
+                Matrix4D projectionMatrix;
+                ReadProcessMemory(hProcess, (BYTE*)(moduleBase + general.projMatrix), &projectionMatrix, sizeof(projectionMatrix), nullptr);
+
+                // Go to each player
+                for (int i = 1; i < numPlayers; i++) {
+                    uintptr_t posAddr = FindDMAAddy(hProcess, (moduleBase + general.playerList), { (unsigned int)(i * 8), 0x30 });
+                    Vec3 position;
+                    ReadProcessMemory(hProcess, (BYTE*)(posAddr), &position, sizeof(position), nullptr);
+
+                    Vec2 screenCoords;
+                    if (!WorldToScreen(position, screenCoords, projectionMatrix.Matrix, 1920, 1080)) {
+                        continue;
+                    }
+
+                    //std::cout << screenCoords.X << std::endl;
+                    //std::cout << screenCoords.Y << std::endl;
+
+                    glBegin(GL_LINES);
+                    glVertex2f(0.f, -1.f);
+                    glVertex2f(screenCoords.X, screenCoords.Y);
+                    glEnd();
+                }
+            }
+        }
 
         // draw imgui stuff here
         if (bMenuVisible) {
@@ -106,7 +177,6 @@ int main() {
         int display_w, display_h;
         glfwGetFramebufferSize(window, &display_w, &display_h);
         glViewport(0, 0, display_w, display_h);
-        glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(window);

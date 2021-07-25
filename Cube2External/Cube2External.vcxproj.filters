@@ -47,5 +47,11 @@
     <ClInclude Include="Helpers.h">
       <Filter>Code\util</Filter>
     </ClInclude>
+    <ClInclude Include="offsets.h">
+      <Filter>Code\util</Filter>
+    </ClInclude>
+    <ClInclude Include="dataTypes.h">
+      <Filter>Code\util</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

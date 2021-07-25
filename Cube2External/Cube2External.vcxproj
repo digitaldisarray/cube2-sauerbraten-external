@@ -157,7 +157,9 @@
     <ClCompile Include="proc.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="dataTypes.h" />
     <ClInclude Include="Helpers.h" />
+    <ClInclude Include="offsets.h" />
     <ClInclude Include="proc.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
