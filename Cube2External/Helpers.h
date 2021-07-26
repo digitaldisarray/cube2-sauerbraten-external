@@ -23,6 +23,29 @@ void ConvertToRange(Vec2& point, int windowWidth, int windowHeight) {
 
 bool WorldToScreen(Vec3 pos, Vec2& screen, float matrix[16], int windowWidth, int windowHeight)
 {
+    Vec3 clip;
+    clip.Z = pos.X * matrix[3] + pos.Y * matrix[7] + pos.Z * matrix[11] + matrix[15];
+    if (clip.Z < 0.1f)
+        return false;
+
+    clip.X = pos.X * matrix[0] + pos.Y * matrix[4] + pos.Z * matrix[8] + matrix[12];
+    clip.Y = pos.X * matrix[1] + pos.Y * matrix[5] + pos.Z * matrix[9] + matrix[13];
+
+    Vec2 ndc;
+    ndc.X = clip.X / clip.Z;
+    ndc.Y = clip.Y / clip.Z;
+
+    screen.X = (windowWidth / 2 * ndc.X) + (ndc.X + windowWidth / 2);
+    screen.Y = (windowHeight / 2 * ndc.Y) + (ndc.Y + windowHeight / 2);
+
+
+    ConvertToRange(screen, windowWidth, windowHeight);
+
+    return true;
+}
+
+bool WorldToScreenOld(Vec3 pos, Vec2& screen, float matrix[16], int windowWidth, int windowHeight)
+{
     // Matrix-vector Product, multiplying world(eye) coordinates by projection matrix = clipCoords
     Vec4 clipCoords;
     clipCoords.X = pos.X * matrix[0] + pos.Y * matrix[4] + pos.Z * matrix[8] + matrix[12];

@@ -7,6 +7,11 @@ struct Vec3 {
 	float X;
 	float Y;
 	float Z;
+	void multiply(Vec3 vector) {
+		X *= vector.X;
+		Y *= vector.Y;
+		Z *= vector.Z;
+	};
 };
 
 struct Vec4 {
