@@ -39,6 +39,9 @@
     <ClCompile Include="include\imgui\imgui_widgets.cpp">
       <Filter>Code\imgui</Filter>
     </ClCompile>
+    <ClCompile Include="gltext.cpp">
+      <Filter>Code\util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="proc.h">
@@ -51,6 +54,9 @@
       <Filter>Code\util</Filter>
     </ClInclude>
     <ClInclude Include="dataTypes.h">
+      <Filter>Code\util</Filter>
+    </ClInclude>
+    <ClInclude Include="gltext.h">
       <Filter>Code\util</Filter>
     </ClInclude>
   </ItemGroup>

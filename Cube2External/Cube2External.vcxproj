@@ -146,6 +146,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="gltext.cpp" />
     <ClCompile Include="include\imgui\imgui.cpp" />
     <ClCompile Include="include\imgui\imgui_demo.cpp" />
     <ClCompile Include="include\imgui\imgui_draw.cpp" />
@@ -158,6 +159,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="dataTypes.h" />
+    <ClInclude Include="gltext.h" />
     <ClInclude Include="Helpers.h" />
     <ClInclude Include="offsets.h" />
     <ClInclude Include="proc.h" />
