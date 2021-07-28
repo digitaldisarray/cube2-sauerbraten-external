@@ -89,6 +89,8 @@ int main() {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
 
+    ImFont* font = io.Fonts->AddFontDefault();
+    IM_ASSERT(font != NULL);
 
     // Setup Dear ImGui style
     //ImGui::StyleColorsDark();
@@ -104,10 +106,6 @@ int main() {
     bool bTracers = true;
     bool bTeamCheck = true;
     bool bGodMode = false;
-    
-    // GL Font setup
-    GL::Font font;
-    font.Build(12); // TODO: make scale to screen resolution
 
     // Main loop
     while (!glfwWindowShouldClose(window)) {
@@ -126,8 +124,6 @@ int main() {
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-        glClear(GL_COLOR_BUFFER_BIT);
-        
         
         int inMenu = 0;
         ReadProcessMemory(hProcess, (BYTE*)moduleBase + general.menu, &inMenu, sizeof(inMenu), nullptr);
@@ -178,20 +174,13 @@ int main() {
                             continue;
                         }
 
-                        glBegin(GL_LINES);
-                        glVertex2f(0.f, -1.f);
-                        glVertex2f(screenCoords.X, screenCoords.Y);
-                        glEnd();
-
+                        ImGui::GetBackgroundDrawList()->AddLine(ImVec2(990.f, 1080.f), ImVec2(screenCoords.X, screenCoords.Y), ImGui::ColorConvertFloat4ToU32(ImVec4(0 / 255.0, 255.0 / 255.0, 120.0 / 255.0, 255 / 255.0)));
 
                         if (!WorldToScreen(bottomPosition, screenCoords, projectionMatrix.Matrix, 1920, 1080)) {
                             continue;
                         }
 
-                        glBegin(GL_LINES);
-                        glVertex2f(0.f, -1.f);
-                        glVertex2f(screenCoords.X, screenCoords.Y);
-                        glEnd();
+                        ImGui::GetBackgroundDrawList()->AddLine(ImVec2(990.f, 1080.f), ImVec2(screenCoords.X, screenCoords.Y), ImGui::ColorConvertFloat4ToU32(ImVec4(0 / 255.0, 255.0 / 255.0, 120.0 / 255.0, 255 / 255.0)));
                     }
 
                     if (bESP) {
@@ -206,8 +195,7 @@ int main() {
                         char name[15];
                         ReadProcessMemory(hProcess, (BYTE*)nameAddr, &name, sizeof(name), nullptr);
 
-
-                        font.Print(screenCoords.X, screenCoords.Y, 255, 255, 255, name);
+                        ImGui::GetBackgroundDrawList()->AddText(ImVec2(screenCoords.X, screenCoords.Y), ImGui::ColorConvertFloat4ToU32(ImVec4(0 / 255.0, 255.0 / 255.0, 120.0 / 255.0, 255 / 255.0)), std::string(name).c_str());
                     }
 
                 }
@@ -219,7 +207,7 @@ int main() {
 
             ImGui::Begin("x86Cheats - Cube 2: Sauerbraten");
             
-
+            ImGui::Checkbox("ESP", &bESP);
             ImGui::Checkbox("Tracers", &bTracers);
             ImGui::Checkbox("God Mode (Offline Only)", &bGodMode);
 
@@ -229,7 +217,6 @@ int main() {
             }
 
             ImGui::End();
-
         }
         
         // Rendering
@@ -237,6 +224,7 @@ int main() {
         int display_w, display_h;
         glfwGetFramebufferSize(window, &display_w, &display_h);
         glViewport(0, 0, display_w, display_h);
+        glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(window);

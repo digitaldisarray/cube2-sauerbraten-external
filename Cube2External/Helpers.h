@@ -21,7 +21,7 @@ void ConvertToRange(Vec2& point, int windowWidth, int windowHeight) {
     point.Y -= 1.f;
 }
 
-bool WorldToScreen(Vec3 pos, Vec2& screen, float matrix[16], int windowWidth, int windowHeight)
+bool WorldToScreenOld(Vec3 pos, Vec2& screen, float matrix[16], int windowWidth, int windowHeight)
 {
     Vec3 clip;
     clip.Z = pos.X * matrix[3] + pos.Y * matrix[7] + pos.Z * matrix[11] + matrix[15];
@@ -38,13 +38,13 @@ bool WorldToScreen(Vec3 pos, Vec2& screen, float matrix[16], int windowWidth, in
     screen.X = (windowWidth / 2 * ndc.X) + (ndc.X + windowWidth / 2);
     screen.Y = (windowHeight / 2 * ndc.Y) + (ndc.Y + windowHeight / 2);
 
-
-    ConvertToRange(screen, windowWidth, windowHeight);
+    // Convert to -1.0 to 1.0 range, only used for OpenGL rendering
+    // ConvertToRange(screen, windowWidth, windowHeight);
 
     return true;
 }
 
-bool WorldToScreenOld(Vec3 pos, Vec2& screen, float matrix[16], int windowWidth, int windowHeight)
+bool WorldToScreen(Vec3 pos, Vec2& screen, float matrix[16], int windowWidth, int windowHeight)
 {
     // Matrix-vector Product, multiplying world(eye) coordinates by projection matrix = clipCoords
     Vec4 clipCoords;
@@ -65,7 +65,8 @@ bool WorldToScreenOld(Vec3 pos, Vec2& screen, float matrix[16], int windowWidth,
     screen.X = (windowWidth / 2 * NDC.X) + (NDC.X + windowWidth / 2);
     screen.Y = -(windowHeight / 2 * NDC.Y) + (NDC.Y + windowHeight / 2);
 
-    ConvertToRange(screen, windowWidth, windowHeight);
+    // Convert to -1.0 to 1.0 range, only used for OpenGL rendering
+    // ConvertToRange(screen, windowWidth, windowHeight);
 
     return true;
 }
