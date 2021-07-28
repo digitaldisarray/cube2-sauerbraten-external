@@ -8,37 +8,52 @@
 #include <stdio.h>
 #include <GLFW/glfw3.h>
 #include "proc.h"
-#include "dataTypes.h"
-#include "Helpers.h"
+#include "math.h"
 #include "offsets.h"
-#include "gltext.h"
 
-static void glfw_error_callback(int error, const char* description)
-{
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include "GLFW/glfw3native.h"
+
+static void glfw_error_callback(int error, const char* description) {
     fprintf(stderr, "Glfw Error %d: %s\n", error, description);
 }
 
+void SetForeground(HWND window) {
+    // Set up a generic keyboard event
+    INPUT keyInput;
+    keyInput.type = INPUT_KEYBOARD;
+    keyInput.ki.wScan = 0; // Hardware scan code for key
+    keyInput.ki.time = 0;
+    keyInput.ki.dwExtraInfo = 0;
+
+    // Set focus to the hWnd (sending Alt allows to bypass limitation)
+    keyInput.ki.wVk = VK_MENU;
+    keyInput.ki.dwFlags = 0;   // 0 for key press
+    SendInput(1, &keyInput, sizeof(INPUT));
+
+    // Set focus to cheat overlay
+    SetForegroundWindow(window);
+
+    keyInput.ki.wVk = VK_MENU;
+    keyInput.ki.dwFlags = KEYEVENTF_KEYUP;  // Key release
+    SendInput(1, &keyInput, sizeof(INPUT));
+}
 
 int main() {
-
-    // get procid of the target process
+    // Get process ID
     DWORD procId = GetProcId(L"sauerbraten.exe");
     std::cout << "PID: " << procId << std::endl;
-
     if (!procId) {
         std::cout << "sauerbraten.exe not found" << std::endl;
         return 0;
     }
 
-    // Get the base address of the game
+    // Get the base address of the game and open a handle to the process
     uintptr_t moduleBase = GetModuleBaseAddress(procId, L"sauerbraten.exe");
-
-    // Open handle to process
     HANDLE hProcess = 0;
     hProcess = OpenProcess(PROCESS_ALL_ACCESS, NULL, procId);
 
     localPlayer.dmaHealth = FindDMAAddy(hProcess, (moduleBase + localPlayer.base), { 0x0, localPlayer.health });
-    std::cout << "among us: 0x" << std::hex << localPlayer.dmaHealth << std::endl;
 
     glfwSetErrorCallback(glfw_error_callback);
     if (!glfwInit())
@@ -58,11 +73,19 @@ int main() {
     glfwWindowHint(GLFW_MAXIMIZED, true);
     glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, true);
 
-
     // Create window with graphics context
-    GLFWwindow* window = glfwCreateWindow(monitorWidth, monitorHeight, "Dear ImGui GLFW+OpenGL3 example", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(monitorWidth, monitorHeight, "Overlay", NULL, NULL);
     if (window == NULL)
         return 1;
+
+    // Get handle to overlay window
+    HWND overlayHandle = glfwGetWin32Window(window);
+
+    // Get handle to sauerbraten
+    HWND sauerbratenHandle = FindWindowA(NULL, "Cube 2: Sauerbraten");
+
+    // Hide console
+    ShowWindow(GetConsoleWindow(), SW_HIDE);
 
     // Remove title bar
     glfwSetWindowAttrib(window, GLFW_DECORATED, false);
@@ -106,18 +129,26 @@ int main() {
     bool bTracers = true;
     bool bTeamCheck = true;
     bool bGodMode = false;
+    bool bShowConsole = false;
 
     // Main loop
     while (!glfwWindowShouldClose(window)) {
         // Get input
         glfwPollEvents();
-
+        
+        // Open/close menu
         if (GetAsyncKeyState(VK_RSHIFT) & 1) {
             bMenuVisible = !bMenuVisible;
-            if (bMenuVisible)
-                showMenu(window);
-            else
-                hideMenu(window);
+            if (bMenuVisible) {
+                glfwSetWindowAttrib(window, GLFW_MOUSE_PASSTHROUGH, false); // Show menu
+
+                SetForeground(overlayHandle);
+            }
+            else {
+                glfwSetWindowAttrib(window, GLFW_MOUSE_PASSTHROUGH, true); // Hide menu
+
+                SetForeground(sauerbratenHandle);
+            }
         }
 
         // Start the Dear ImGui frame
@@ -163,10 +194,10 @@ int main() {
                     ReadProcessMemory(hProcess, (BYTE*)(posAddr), &position, sizeof(position), nullptr);
 
                     Vec3 topPosition = position;
-                    topPosition.Z += 4;
+                    topPosition.z += 4;
 
                     Vec3 bottomPosition = position;
-                    bottomPosition.Z -= 14;
+                    bottomPosition.z -= 14;
 
                     if (bTracers) {
                         Vec2 screenCoords;
@@ -174,13 +205,13 @@ int main() {
                             continue;
                         }
 
-                        ImGui::GetBackgroundDrawList()->AddLine(ImVec2(990.f, 1080.f), ImVec2(screenCoords.X, screenCoords.Y), ImGui::ColorConvertFloat4ToU32(ImVec4(0 / 255.0, 255.0 / 255.0, 120.0 / 255.0, 255 / 255.0)));
+                        ImGui::GetBackgroundDrawList()->AddLine(ImVec2(990.f, 1080.f), ImVec2(screenCoords.x, screenCoords.y), ImGui::ColorConvertFloat4ToU32(ImVec4(0 / 255.0, 255.0 / 255.0, 120.0 / 255.0, 255 / 255.0)));
 
                         if (!WorldToScreen(bottomPosition, screenCoords, projectionMatrix.Matrix, 1920, 1080)) {
                             continue;
                         }
 
-                        ImGui::GetBackgroundDrawList()->AddLine(ImVec2(990.f, 1080.f), ImVec2(screenCoords.X, screenCoords.Y), ImGui::ColorConvertFloat4ToU32(ImVec4(0 / 255.0, 255.0 / 255.0, 120.0 / 255.0, 255 / 255.0)));
+                        ImGui::GetBackgroundDrawList()->AddLine(ImVec2(990.f, 1080.f), ImVec2(screenCoords.x, screenCoords.y), ImGui::ColorConvertFloat4ToU32(ImVec4(0 / 255.0, 255.0 / 255.0, 120.0 / 255.0, 255 / 255.0)));
                     }
 
                     if (bESP) {
@@ -195,7 +226,7 @@ int main() {
                         char name[15];
                         ReadProcessMemory(hProcess, (BYTE*)nameAddr, &name, sizeof(name), nullptr);
 
-                        ImGui::GetBackgroundDrawList()->AddText(ImVec2(screenCoords.X, screenCoords.Y), ImGui::ColorConvertFloat4ToU32(ImVec4(0 / 255.0, 255.0 / 255.0, 120.0 / 255.0, 255 / 255.0)), std::string(name).c_str());
+                        ImGui::GetBackgroundDrawList()->AddText(ImVec2(screenCoords.x, screenCoords.y), ImGui::ColorConvertFloat4ToU32(ImVec4(0 / 255.0, 255.0 / 255.0, 120.0 / 255.0, 255 / 255.0)), std::string(name).c_str());
                     }
 
                 }
@@ -211,6 +242,15 @@ int main() {
             ImGui::Checkbox("Tracers", &bTracers);
             ImGui::Checkbox("God Mode (Offline Only)", &bGodMode);
 
+
+            if (ImGui::Button("Toggle Console")) {
+                bShowConsole = !bShowConsole;
+
+                if (bShowConsole)
+                    ShowWindow(GetConsoleWindow(), SW_SHOW);
+                else
+                    ShowWindow(GetConsoleWindow(), SW_HIDE);
+            }
 
             if (ImGui::Button("Exit")) {
                 return 0;
