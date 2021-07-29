@@ -8,14 +8,11 @@ DWORD GetProcId(const wchar_t* procName) {
 		procEntry.dwSize = sizeof(procEntry);
 
 		if (Process32First(hSnap, &procEntry)) {
-
 			do {
-
 				if (!_wcsicmp(procEntry.szExeFile, procName)) {
 					procId = procEntry.th32ProcessID;
 					break;
 				}
-
 			} while (Process32Next(hSnap, &procEntry));
 		}
 	}
@@ -32,7 +29,6 @@ uintptr_t GetModuleBaseAddress(DWORD procId, const wchar_t* modName) {
 
 		if (Module32First(hSnap, &modEntry)) {
 			do {
-
 				if (!_wcsicmp(modEntry.szModule, modName)) {
 					modBaseAddr = (uintptr_t)modEntry.modBaseAddr;
 					break;

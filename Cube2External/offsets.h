@@ -1,6 +1,5 @@
 #pragma once
 
-// Local player offsets
 struct LocalPlayer {
     const unsigned int base = 0x003472D0;
     const unsigned int camBase = 0x002A2560;
@@ -10,9 +9,6 @@ struct LocalPlayer {
     const unsigned int zPos = 0x39C;
     const unsigned int viewAngles = 0x3C;
     uintptr_t dmaHealth = 0x0;
-    uintptr_t dmaXPos = 0x0;
-    uintptr_t dmaYPos = 0x0;
-    uintptr_t dmaZPos = 0x0;
 }localPlayer;
 
 

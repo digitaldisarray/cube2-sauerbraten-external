@@ -66,9 +66,6 @@ int main() {
         return 0;
     int monitorWidth = glfwGetVideoMode(primaryMonitor)->width;
     int monitorHeight = glfwGetVideoMode(primaryMonitor)->height;
-    Vec2 center;
-    center.x = .5f * monitorWidth;
-    center.y = .5f * monitorHeight;
 
     // Make the window floating, non resizable, maximized, and transparent
     glfwWindowHint(GLFW_FLOATING, true);
@@ -129,7 +126,8 @@ int main() {
     // Temporary setting vars
     bool bMenuVisible = true;
     bool bAimbot = false;
-    bool bESP = true;
+    float fFOV = 20.f;
+    bool bNameTags = true;
     bool bTracers = true;
     bool bTeamCheck = true;
     bool bGodMode = false;
@@ -149,12 +147,10 @@ int main() {
             bMenuVisible = !bMenuVisible;
             if (bMenuVisible) {
                 glfwSetWindowAttrib(window, GLFW_MOUSE_PASSTHROUGH, false); // Show menu
-
                 SetForeground(overlayHandle);
             }
             else {
                 glfwSetWindowAttrib(window, GLFW_MOUSE_PASSTHROUGH, true); // Hide menu
-
                 SetForeground(sauerbratenHandle);
             }
         }
@@ -173,10 +169,10 @@ int main() {
             
             if (bGodMode) {
                 int amount = 333;
-                // Real health
+                // Change health
                 WriteProcessMemory(hProcess, (LPVOID)localPlayer.dmaHealth, &amount, sizeof(amount), nullptr);
 
-                // Display value (todo)
+                // TODO: Edit the display value
             }
 
             // If other players exist
@@ -206,8 +202,9 @@ int main() {
                     }
 
                     // Find the closest enemy to the center of the screen
-                    int dX = std::abs(center.x - screenPos.x);
-                    int dY = std::abs(center.y - screenPos.y);
+                    // TODO: Fix this code, often selects a target that is out of fov
+                    int dX = monitorWidth / 2 - screenPos.x;
+                    int dY = monitorHeight / 2 - screenPos.y;
                     int dist = std::sqrt(dX * dX + dY * dY);
                     if (i == 1) {
                         smallestDist = dist;
@@ -229,16 +226,18 @@ int main() {
                         ImGui::GetBackgroundDrawList()->AddLine(ImVec2(990.f, 1080.f), ImVec2(bottomPos.x, bottomPos.y), ImGui::ColorConvertFloat4ToU32(ImVec4(1.f, 1.f, 1.f, 1.f)));
                     }
 
-                    if (bESP) {
+                    if (bNameTags) {
                         // Read entity name (max length is 15 chars)
                         uintptr_t nameAddr = FindDMAAddy(hProcess, (moduleBase + general.playerList), { (unsigned int)(i * 8), entity.name });
                         char name[15];
                         ReadProcessMemory(hProcess, (BYTE*)nameAddr, &name, sizeof(name), nullptr);
 
-                        ImGui::GetBackgroundDrawList()->AddText(ImVec2(screenPos.x, screenPos.y), ImGui::ColorConvertFloat4ToU32(ImVec4(1.f, 1.f, 1.f, 1.f)), std::string(name).c_str());
+                        ImVec2 size = ImGui::CalcTextSize(name);
+                        ImGui::GetBackgroundDrawList()->AddText(ImVec2(screenPos.x - size.x / 2, screenPos.y), ImGui::ColorConvertFloat4ToU32(ImVec4(1.f, 1.f, 1.f, 1.f)), std::string(name).c_str());
                     }
                 }
 
+                // Q key to toggle aimbot
                 if (GetAsyncKeyState(0x51) & 1) {
                     bAimbot = !bAimbot;
                 }
@@ -246,70 +245,65 @@ int main() {
                 // TODO: FIX: aimbot cant run unless world to screen works on at least one enemy
                 if (bAimbot) {
                     
-                    //uintptr_t positionAddr = FindDMAAddy(hProcess, (moduleBase + localPlayer.base), { 0x0, localPlayer.xPos });
-                    uintptr_t positionAddr = FindDMAAddy(hProcess, (moduleBase + general.playerList), { 0x0, entity.position });
-                    Vec3 localPos;
-                    ReadProcessMemory(hProcess, (BYTE*)positionAddr, &localPos, sizeof(localPos), nullptr);
+                    ImGui::GetBackgroundDrawList()->AddCircle(ImVec2(monitorWidth / 2, monitorHeight / 2), fFOV, ImGui::ColorConvertFloat4ToU32(ImVec4(1.f, 1.f, 1.f, 1.f)));
 
-                    // math
-                    Vec2 angle;
-                    angle.x = -std::atan2(closestEnemy.x - localPos.x, closestEnemy.y - localPos.y) / 3.141593 * 180.f;
+                    if (smallestDist <= fFOV) {
+                        uintptr_t positionAddr = FindDMAAddy(hProcess, (moduleBase + general.playerList), { 0x0, entity.position });
+                        Vec3 localPos;
+                        ReadProcessMemory(hProcess, (BYTE*)positionAddr, &localPos, sizeof(localPos), nullptr);
 
-                    Vec3 d;
-                    d.x = localPos.x - closestEnemy.x;
-                    d.y = localPos.y - closestEnemy.y;
-                    d.z = localPos.z - closestEnemy.z;
-                    float distance = sqrtf(d.x * d.x + d.y * d.y + d.z * d.z);
+                        // Aimbot math
+                        Vec2 angle;
+                        angle.x = -std::atan2(closestEnemy.x - localPos.x, closestEnemy.y - localPos.y) / 3.141593 * 180.f;
 
-                    std::cout << "x: " << d.x << "\n";
+                        Vec3 d;
+                        d.x = localPos.x - closestEnemy.x;
+                        d.y = localPos.y - closestEnemy.y;
+                        d.z = localPos.z - closestEnemy.z;
+                        float distance = sqrtf(d.x * d.x + d.y * d.y + d.z * d.z);
 
+                        angle.y = std::asin((closestEnemy.z - localPos.z) / distance) * (57.2957795131); // 57 is 180/pi
 
-                    angle.y = std::asin((closestEnemy.z - localPos.z) / distance) * (57.2957795131); // 57 is 180/pi
-                    // OLD: Vec2 angle = CalcAngle(closestEnemy, localPos);
+                        // Normalize/Clamp angles
+                        if (angle.x < 0.f) 
+                            angle.x += 360.f;
+                        
+                        if (angle.x > 360.f) 
+                            angle.x -= 360.f;
+                        
+                        if (angle.y < -90.f) 
+                            angle.y = -90.f;
+                        
+                        if (angle.y > 90.f) 
+                            angle.y = 90.f;
 
-                    // Normalize/Clamp angles
-                    if (angle.x < 0.f) {
-                        angle.x += 360.f;
+                        // Write angles
+                        uintptr_t viewAnglesAddr = FindDMAAddy(hProcess, (moduleBase + localPlayer.camBase), { localPlayer.viewAngles });
+                        WriteProcessMemory(hProcess, (LPVOID)viewAnglesAddr, &angle, sizeof(angle), nullptr);
+
+                        // Draw a cross at the desired aiming position
+                        Vec2 crossPos;
+                        WorldToScreen(closestEnemy, crossPos, projectionMatrix.Matrix, 1920, 1080);
+                        ImGui::GetBackgroundDrawList()->AddLine(ImVec2(crossPos.x - 8, crossPos.y), ImVec2(crossPos.x + 8, crossPos.y), ImGui::ColorConvertFloat4ToU32(ImVec4(1.f, 1.f, 1.f, 1.f)));
+                        ImGui::GetBackgroundDrawList()->AddLine(ImVec2(crossPos.x, crossPos.y - 8), ImVec2(crossPos.x, crossPos.y + 8), ImGui::ColorConvertFloat4ToU32(ImVec4(1.f, 1.f, 1.f, 1.f)));
                     }
-
-                    if (angle.x > 360.f) {
-                        angle.x -= 360.f;
-                    }
-
-                    if (angle.y < -90.f) {
-                        angle.y = -90.f;
-                    }
-
-                    if (angle.y > 90.f) {
-                        angle.y = 90.f;
-                    }
-
-                    // write angles
-                    uintptr_t viewAnglesAddr = FindDMAAddy(hProcess, (moduleBase + localPlayer.camBase), { localPlayer.viewAngles });
-                    WriteProcessMemory(hProcess, (LPVOID)viewAnglesAddr, &angle, sizeof(angle), nullptr);
-
-                    Vec2 crossPos;
-                    WorldToScreen(closestEnemy, crossPos, projectionMatrix.Matrix, 1920, 1080);
-                    ImGui::GetBackgroundDrawList()->AddLine(ImVec2(crossPos.x - 8, crossPos.y), ImVec2(crossPos.x + 8, crossPos.y), ImGui::ColorConvertFloat4ToU32(ImVec4(1.f, 1.f, 1.f, 1.f)));
-                    ImGui::GetBackgroundDrawList()->AddLine(ImVec2(crossPos.x, crossPos.y - 8), ImVec2(crossPos.x, crossPos.y + 8), ImGui::ColorConvertFloat4ToU32(ImVec4(1.f, 1.f, 1.f, 1.f)));
                 }
 
                 // Reset smallest dist and closest enemy
                 smallestDist = 9999999.f;
-
             }
         }
 
-        // draw imgui stuff here
+        // Menu code
         if (bMenuVisible) {
 
             ImGui::Begin("x86Cheats - Cube 2: Sauerbraten");
             
             ImGui::Checkbox("Aimbot", &bAimbot);
-            ImGui::Checkbox("ESP", &bESP);
+            ImGui::SliderFloat("Aimbot FOV", &fFOV, 0.f, 900.f);
+            ImGui::Checkbox("Name Tags", &bNameTags);
             ImGui::Checkbox("Tracers", &bTracers);
             ImGui::Checkbox("God Mode (Offline Only)", &bGodMode);
-
 
             if (ImGui::Button("Toggle Console")) {
                 bShowConsole = !bShowConsole;
