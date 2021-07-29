@@ -66,6 +66,9 @@ int main() {
         return 0;
     int monitorWidth = glfwGetVideoMode(primaryMonitor)->width;
     int monitorHeight = glfwGetVideoMode(primaryMonitor)->height;
+    Vec2 center;
+    center.x = .5f * monitorWidth;
+    center.y = .5f * monitorHeight;
 
     // Make the window floating, non resizable, maximized, and transparent
     glfwWindowHint(GLFW_FLOATING, true);
@@ -125,11 +128,16 @@ int main() {
 
     // Temporary setting vars
     bool bMenuVisible = true;
+    bool bAimbot = false;
     bool bESP = true;
     bool bTracers = true;
     bool bTeamCheck = true;
     bool bGodMode = false;
     bool bShowConsole = false;
+
+    // The enemy closest to the center of the screen
+    Vec3 closestEnemy;
+    float smallestDist = 9999999.f;
 
     // Main loop
     while (!glfwWindowShouldClose(window)) {
@@ -176,7 +184,6 @@ int main() {
                 Matrix4D projectionMatrix;
                 ReadProcessMemory(hProcess, (BYTE*)(moduleBase + general.projMatrix), &projectionMatrix, sizeof(projectionMatrix), nullptr);
 
-
                 // Go to each player
                 for (int i = 1; i < numPlayers; i++) {
                     uintptr_t healthAddr = FindDMAAddy(hProcess, (moduleBase + general.playerList), { (unsigned int)(i * 8), entity.health });
@@ -193,43 +200,103 @@ int main() {
                     Vec3 position;
                     ReadProcessMemory(hProcess, (BYTE*)(posAddr), &position, sizeof(position), nullptr);
 
-                    Vec3 topPosition = position;
-                    topPosition.z += 4;
+                    Vec2 screenPos;
+                    if (!WorldToScreen(position, screenPos, projectionMatrix.Matrix, 1920, 1080)) {
+                        continue;
+                    }
+
+                    // Find the closest enemy to the center of the screen
+                    int dX = std::abs(center.x - screenPos.x);
+                    int dY = std::abs(center.y - screenPos.y);
+                    int dist = std::sqrt(dX * dX + dY * dY);
+                    if (i == 1) {
+                        smallestDist = dist;
+                        closestEnemy = position;
+                    }
+                    else {
+                        if (dist < smallestDist) {
+                            smallestDist = dist;
+                            closestEnemy = position;
+                        }
+                    }
 
                     Vec3 bottomPosition = position;
                     bottomPosition.z -= 14;
 
                     if (bTracers) {
-                        Vec2 screenCoords;
-                        if (!WorldToScreen(topPosition, screenCoords, projectionMatrix.Matrix, 1920, 1080)) {
-                            continue;
-                        }
-
-                        ImGui::GetBackgroundDrawList()->AddLine(ImVec2(990.f, 1080.f), ImVec2(screenCoords.x, screenCoords.y), ImGui::ColorConvertFloat4ToU32(ImVec4(0 / 255.0, 255.0 / 255.0, 120.0 / 255.0, 255 / 255.0)));
-
-                        if (!WorldToScreen(bottomPosition, screenCoords, projectionMatrix.Matrix, 1920, 1080)) {
-                            continue;
-                        }
-
-                        ImGui::GetBackgroundDrawList()->AddLine(ImVec2(990.f, 1080.f), ImVec2(screenCoords.x, screenCoords.y), ImGui::ColorConvertFloat4ToU32(ImVec4(0 / 255.0, 255.0 / 255.0, 120.0 / 255.0, 255 / 255.0)));
+                        Vec2 bottomPos;
+                        WorldToScreen(bottomPosition, bottomPos, projectionMatrix.Matrix, 1920, 1080);
+                        ImGui::GetBackgroundDrawList()->AddLine(ImVec2(990.f, 1080.f), ImVec2(bottomPos.x, bottomPos.y), ImGui::ColorConvertFloat4ToU32(ImVec4(1.f, 1.f, 1.f, 1.f)));
                     }
 
                     if (bESP) {
-
-                        Vec2 screenCoords;
-                        if (!WorldToScreen(topPosition, screenCoords, projectionMatrix.Matrix, 1920, 1080)) {
-                            continue;
-                        }
-
                         // Read entity name (max length is 15 chars)
                         uintptr_t nameAddr = FindDMAAddy(hProcess, (moduleBase + general.playerList), { (unsigned int)(i * 8), entity.name });
                         char name[15];
                         ReadProcessMemory(hProcess, (BYTE*)nameAddr, &name, sizeof(name), nullptr);
 
-                        ImGui::GetBackgroundDrawList()->AddText(ImVec2(screenCoords.x, screenCoords.y), ImGui::ColorConvertFloat4ToU32(ImVec4(0 / 255.0, 255.0 / 255.0, 120.0 / 255.0, 255 / 255.0)), std::string(name).c_str());
+                        ImGui::GetBackgroundDrawList()->AddText(ImVec2(screenPos.x, screenPos.y), ImGui::ColorConvertFloat4ToU32(ImVec4(1.f, 1.f, 1.f, 1.f)), std::string(name).c_str());
+                    }
+                }
+
+                if (GetAsyncKeyState(0x51) & 1) {
+                    bAimbot = !bAimbot;
+                }
+
+                // TODO: FIX: aimbot cant run unless world to screen works on at least one enemy
+                if (bAimbot) {
+                    
+                    //uintptr_t positionAddr = FindDMAAddy(hProcess, (moduleBase + localPlayer.base), { 0x0, localPlayer.xPos });
+                    uintptr_t positionAddr = FindDMAAddy(hProcess, (moduleBase + general.playerList), { 0x0, entity.position });
+                    Vec3 localPos;
+                    ReadProcessMemory(hProcess, (BYTE*)positionAddr, &localPos, sizeof(localPos), nullptr);
+
+                    // math
+                    Vec2 angle;
+                    angle.x = -std::atan2(closestEnemy.x - localPos.x, closestEnemy.y - localPos.y) / 3.141593 * 180.f;
+
+                    Vec3 d;
+                    d.x = localPos.x - closestEnemy.x;
+                    d.y = localPos.y - closestEnemy.y;
+                    d.z = localPos.z - closestEnemy.z;
+                    float distance = sqrtf(d.x * d.x + d.y * d.y + d.z * d.z);
+
+                    std::cout << "x: " << d.x << "\n";
+
+
+                    angle.y = std::asin((closestEnemy.z - localPos.z) / distance) * (57.2957795131); // 57 is 180/pi
+                    // OLD: Vec2 angle = CalcAngle(closestEnemy, localPos);
+
+                    // Normalize/Clamp angles
+                    if (angle.x < 0.f) {
+                        angle.x += 360.f;
                     }
 
+                    if (angle.x > 360.f) {
+                        angle.x -= 360.f;
+                    }
+
+                    if (angle.y < -90.f) {
+                        angle.y = -90.f;
+                    }
+
+                    if (angle.y > 90.f) {
+                        angle.y = 90.f;
+                    }
+
+                    // write angles
+                    uintptr_t viewAnglesAddr = FindDMAAddy(hProcess, (moduleBase + localPlayer.camBase), { localPlayer.viewAngles });
+                    WriteProcessMemory(hProcess, (LPVOID)viewAnglesAddr, &angle, sizeof(angle), nullptr);
+
+                    Vec2 crossPos;
+                    WorldToScreen(closestEnemy, crossPos, projectionMatrix.Matrix, 1920, 1080);
+                    ImGui::GetBackgroundDrawList()->AddLine(ImVec2(crossPos.x - 8, crossPos.y), ImVec2(crossPos.x + 8, crossPos.y), ImGui::ColorConvertFloat4ToU32(ImVec4(1.f, 1.f, 1.f, 1.f)));
+                    ImGui::GetBackgroundDrawList()->AddLine(ImVec2(crossPos.x, crossPos.y - 8), ImVec2(crossPos.x, crossPos.y + 8), ImGui::ColorConvertFloat4ToU32(ImVec4(1.f, 1.f, 1.f, 1.f)));
                 }
+
+                // Reset smallest dist and closest enemy
+                smallestDist = 9999999.f;
+
             }
         }
 
@@ -238,6 +305,7 @@ int main() {
 
             ImGui::Begin("x86Cheats - Cube 2: Sauerbraten");
             
+            ImGui::Checkbox("Aimbot", &bAimbot);
             ImGui::Checkbox("ESP", &bESP);
             ImGui::Checkbox("Tracers", &bTracers);
             ImGui::Checkbox("God Mode (Offline Only)", &bGodMode);
@@ -252,7 +320,7 @@ int main() {
                     ShowWindow(GetConsoleWindow(), SW_HIDE);
             }
 
-            if (ImGui::Button("Exit")) {
+            if (ImGui::Button("Quit")) {
                 return 0;
             }
 

@@ -3,6 +3,7 @@
 // Local player offsets
 struct LocalPlayer {
     const unsigned int base = 0x003472D0;
+    const unsigned int camBase = 0x002A2560;
     const unsigned int health = 0x340;
     const unsigned int xPos = 0x394;
     const unsigned int yPos = 0x398;
