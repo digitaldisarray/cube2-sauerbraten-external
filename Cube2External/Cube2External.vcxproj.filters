@@ -50,5 +50,8 @@
     <ClInclude Include="offsets.h">
       <Filter>Code\util</Filter>
     </ClInclude>
+    <ClInclude Include="Config.h">
+      <Filter>Code</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

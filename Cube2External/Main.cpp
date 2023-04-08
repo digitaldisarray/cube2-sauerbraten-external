@@ -13,6 +13,7 @@
 
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include "GLFW/glfw3native.h"
+#include "Config.h"
 
 static void glfw_error_callback(int error, const char* description) {
     fprintf(stderr, "Glfw Error %d: %s\n", error, description);
@@ -123,15 +124,8 @@ int main() {
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init(glsl_version);
 
-    // Temporary setting vars
-    bool bMenuVisible = true;
-    bool bAimbot = false;
-    float fFOV = 20.f;
-    bool bNameTags = true;
-    bool bTracers = true;
-    bool bTeamCheck = true;
-    bool bGodMode = false;
-    bool bShowConsole = false;
+    // The config
+    Config cfg;
 
     // The enemy closest to the center of the screen
     Vec3 closestEnemy;
@@ -144,8 +138,8 @@ int main() {
         
         // Open/close menu
         if (GetAsyncKeyState(VK_RSHIFT) & 1) {
-            bMenuVisible = !bMenuVisible;
-            if (bMenuVisible) {
+            cfg.bMenuVisible = !cfg.bMenuVisible;
+            if (cfg.bMenuVisible) {
                 glfwSetWindowAttrib(window, GLFW_MOUSE_PASSTHROUGH, false); // Show menu
                 SetForeground(overlayHandle);
             }
@@ -167,7 +161,7 @@ int main() {
             int numPlayers = 0;
             ReadProcessMemory(hProcess, (BYTE*)(moduleBase + general.numPlayers), &numPlayers, sizeof(numPlayers), nullptr);
             
-            if (bGodMode) {
+            if (cfg.bGodMode) {
                 int amount = 333;
                 // Change health
                 WriteProcessMemory(hProcess, (LPVOID)localPlayer.dmaHealth, &amount, sizeof(amount), nullptr);
@@ -220,13 +214,13 @@ int main() {
                     Vec3 bottomPosition = position;
                     bottomPosition.z -= 14;
 
-                    if (bTracers) {
+                    if (cfg.bTracers) {
                         Vec2 bottomPos;
                         WorldToScreen(bottomPosition, bottomPos, projectionMatrix.Matrix, 1920, 1080);
                         ImGui::GetBackgroundDrawList()->AddLine(ImVec2(990.f, 1080.f), ImVec2(bottomPos.x, bottomPos.y), ImGui::ColorConvertFloat4ToU32(ImVec4(1.f, 1.f, 1.f, 1.f)));
                     }
 
-                    if (bNameTags) {
+                    if (cfg.bNameTags) {
                         // Read entity name (max length is 15 chars)
                         uintptr_t nameAddr = FindDMAAddy(hProcess, (moduleBase + general.playerList), { (unsigned int)(i * 8), entity.name });
                         char name[15];
@@ -239,15 +233,15 @@ int main() {
 
                 // Q key to toggle aimbot
                 if (GetAsyncKeyState(0x51) & 1) {
-                    bAimbot = !bAimbot;
+                    cfg.bAimbot = !cfg.bAimbot;
                 }
 
                 // TODO: FIX: aimbot cant run unless world to screen works on at least one enemy
-                if (bAimbot) {
+                if (cfg.bAimbot) {
                     
-                    ImGui::GetBackgroundDrawList()->AddCircle(ImVec2(monitorWidth / 2, monitorHeight / 2), fFOV, ImGui::ColorConvertFloat4ToU32(ImVec4(1.f, 1.f, 1.f, 1.f)));
+                    ImGui::GetBackgroundDrawList()->AddCircle(ImVec2(monitorWidth / 2, monitorHeight / 2), cfg.fFOV, ImGui::ColorConvertFloat4ToU32(ImVec4(1.f, 1.f, 1.f, 1.f)));
 
-                    if (smallestDist <= fFOV) {
+                    if (smallestDist <= cfg.fFOV) {
                         uintptr_t positionAddr = FindDMAAddy(hProcess, (moduleBase + general.playerList), { 0x0, entity.position });
                         Vec3 localPos;
                         ReadProcessMemory(hProcess, (BYTE*)positionAddr, &localPos, sizeof(localPos), nullptr);
@@ -295,20 +289,20 @@ int main() {
         }
 
         // Menu code
-        if (bMenuVisible) {
+        if (cfg.bMenuVisible) {
 
             ImGui::Begin("x86Cheats - Cube 2: Sauerbraten");
             
-            ImGui::Checkbox("Aimbot", &bAimbot);
-            ImGui::SliderFloat("Aimbot FOV", &fFOV, 0.f, 900.f);
-            ImGui::Checkbox("Name Tags", &bNameTags);
-            ImGui::Checkbox("Tracers", &bTracers);
-            ImGui::Checkbox("God Mode (Offline Only)", &bGodMode);
+            ImGui::Checkbox("Aimbot", &cfg.bAimbot);
+            ImGui::SliderFloat("Aimbot FOV", &cfg.fFOV, 0.f, 900.f);
+            ImGui::Checkbox("Name Tags", &cfg.bNameTags);
+            ImGui::Checkbox("Tracers", &cfg.bTracers);
+            ImGui::Checkbox("God Mode (Offline Only)", &cfg.bGodMode);
 
             if (ImGui::Button("Toggle Console")) {
-                bShowConsole = !bShowConsole;
+                cfg.bShowConsole = !cfg.bShowConsole;
 
-                if (bShowConsole)
+                if (cfg.bShowConsole)
                     ShowWindow(GetConsoleWindow(), SW_SHOW);
                 else
                     ShowWindow(GetConsoleWindow(), SW_HIDE);
